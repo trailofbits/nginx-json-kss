@@ -7,10 +7,13 @@
 #include "ngx_http_json_kss_module.h"
 #include "parson.h"
 
+// Module and configuration initialization functions.
 static ngx_int_t ngx_http_json_kss_init(ngx_conf_t *cf);
 static void *ngx_http_json_kss_create_loc_conf(ngx_conf_t *cf);
 static char *ngx_http_json_kss_merge_log_conf(ngx_conf_t *cf, void *parent,
                                               void *child);
+
+// Log handling and structuring functions.
 static ngx_int_t ngx_http_json_kss_log_handler(ngx_http_request_t *r);
 static void ngx_http_json_kss_client_headers(JSON_Object *root,
                                              ngx_http_headers_in_t *headers);
@@ -26,10 +29,15 @@ static void ngx_http_json_kss_free(void *);
 
 static ngx_pool_t *pool = NULL;
 
+// Given an ngx_str_t, return a new C-string containing its data.
 #define PDUP(ngx_str) ((char *)pstrdup0(pool, &(ngx_str)))
 
+// Given an ngx_table_elt_t, return a new C-string containing its value.
 #define PDUP_ELT(ngx_elt) ((char *)pstrdup0(pool, &(ngx_elt)->value))
 
+// Given a JSON object and an ngx_table_elt_t, place the elt's value
+// in the object under the given key. If the elt is NULL,
+// place NULL in the tree instead.
 #define JSON_DOTSET_ELT_S(json, key, ngx_elt)                                  \
   if (ngx_elt) {                                                               \
     json_object_dotset_string(json, key, PDUP_ELT(ngx_elt));                   \
@@ -96,8 +104,6 @@ static ngx_int_t ngx_http_json_kss_init(ngx_conf_t *cf) {
   if (h == NULL) {
     return NGX_ERROR;
   }
-
-  // TODO(ww): Open file cache.
 
   *h = ngx_http_json_kss_log_handler;
 

@@ -241,6 +241,11 @@ static ngx_int_t ngx_http_json_kss_log_handler(ngx_http_request_t *r) {
   // TODO(ww): All kinds of other flags: pipelining, chunked, header_only,
   // expect_trailers, keepalive, lingering_close, etc.
 
+  // TODO(ww): It looks like the default logger gets the timestamp
+  // via ngx_timeofday(), which is really just a macro for a cached
+  // ngx_time_t (which gets updated via a timer?). So we should expose
+  // that as well.
+
   ngx_http_json_kss_fd_mapping_t mapping = {};
   ngx_uint_t i;
 

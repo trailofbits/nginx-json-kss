@@ -39,11 +39,11 @@ static ngx_pool_t *pool = NULL;
 // Given a JSON object and an ngx_table_elt_t, place the elt's value
 // in the object under the given key. If the elt is NULL,
 // place NULL in the tree instead.
-#define JSON_DOTSET_ELT_S(json, key, ngx_elt)                                  \
-  if (ngx_elt) {                                                               \
-    json_object_dotset_string(json, key, PDUP_ELT(ngx_elt));                   \
-  } else {                                                                     \
-    json_object_dotset_null(json, key);                                        \
+#define JSON_SET_ELT_S(json, key, ngx_elt)                                  \
+  if (ngx_elt) {                                                            \
+    json_object_set_string(json, key, PDUP_ELT(ngx_elt));                   \
+  } else {                                                                  \
+    json_object_set_null(json, key);                                        \
   }
 
 static ngx_command_t ngx_http_json_kss_commands[] = {
@@ -201,11 +201,14 @@ static ngx_int_t ngx_http_json_kss_log_handler(ngx_http_request_t *r) {
   char *json_str = NULL;
   ssize_t json_size = 0;
 
-  // TODO(ww): Instead of passing the root object here,
-  // create separate objects for the client and server explicitly
-  // and pass them in.
-  ngx_http_json_kss_client_headers(root_obj, &r->headers_in);
-  ngx_http_json_kss_server_headers(root_obj, &r->headers_out);
+  json_object_set_value(root_obj, "client", json_value_init_object());
+  json_object_set_value(root_obj, "server", json_value_init_object());
+
+  JSON_Object *client = json_object_get_object(root_obj, "client");
+  JSON_Object *server = json_object_get_object(root_obj, "server");
+
+  ngx_http_json_kss_client_headers(client, &r->headers_in);
+  ngx_http_json_kss_server_headers(server, &r->headers_out);
 
   json_object_dotset_number(root_obj, "connection.requests",
                             r->connection->requests);
@@ -279,11 +282,11 @@ static ngx_int_t ngx_http_json_kss_log_handler(ngx_http_request_t *r) {
   return NGX_OK;
 }
 
-static void ngx_http_json_kss_client_headers(JSON_Object *root,
+static void ngx_http_json_kss_client_headers(JSON_Object *client,
                                              ngx_http_headers_in_t *headers) {
   {
-    json_object_dotset_value(root, "client.headers", json_value_init_object());
-    JSON_Object *hdrs = json_object_dotget_object(root, "client.headers");
+    json_object_set_value(client, "headers", json_value_init_object());
+    JSON_Object *hdrs = json_object_get_object(client, "headers");
 
     ngx_uint_t i;
     ngx_list_part_t *part = &headers->headers.part;
@@ -304,47 +307,47 @@ static void ngx_http_json_kss_client_headers(JSON_Object *root,
     }
   }
 
-  JSON_DOTSET_ELT_S(root, "client.host", headers->host);
-  JSON_DOTSET_ELT_S(root, "client.connection", headers->connection);
-  JSON_DOTSET_ELT_S(root, "client.if_modified_since",
+  JSON_SET_ELT_S(client, "host", headers->host);
+  JSON_SET_ELT_S(client, "connection", headers->connection);
+  JSON_SET_ELT_S(client, "if_modified_since",
                     headers->if_modified_since);
-  JSON_DOTSET_ELT_S(root, "client.if_unmodified_since",
+  JSON_SET_ELT_S(client, "if_unmodified_since",
                     headers->if_unmodified_since);
-  JSON_DOTSET_ELT_S(root, "client.if_match", headers->if_match);
-  JSON_DOTSET_ELT_S(root, "client.if_none_match", headers->if_none_match);
-  JSON_DOTSET_ELT_S(root, "client.user_agent", headers->user_agent);
-  JSON_DOTSET_ELT_S(root, "client.referer", headers->referer);
-  JSON_DOTSET_ELT_S(root, "client.content_length", headers->content_length);
+  JSON_SET_ELT_S(client, "if_match", headers->if_match);
+  JSON_SET_ELT_S(client, "if_none_match", headers->if_none_match);
+  JSON_SET_ELT_S(client, "user_agent", headers->user_agent);
+  JSON_SET_ELT_S(client, "referer", headers->referer);
+  JSON_SET_ELT_S(client, "content_length", headers->content_length);
 
 // NOTE(ww): 1.15.6 introduces explicit fields for `content_range` and `te`
 #if defined(nginx_version) && nginx_version >= 1015006
-  JSON_DOTSET_ELT_S(root, "client.content_range", headers->content_range);
-  JSON_DOTSET_ELT_S(root, "client.te", headers->te);
+  JSON_SET_ELT_S(client, "content_range", headers->content_range);
+  JSON_SET_ELT_S(client, "te", headers->te);
 #endif
 
-  JSON_DOTSET_ELT_S(root, "client.content_type", headers->content_type);
+  JSON_SET_ELT_S(client, "content_type", headers->content_type);
 
-  JSON_DOTSET_ELT_S(root, "client.range", headers->range);
-  JSON_DOTSET_ELT_S(root, "client.if_range", headers->if_range);
+  JSON_SET_ELT_S(client, "range", headers->range);
+  JSON_SET_ELT_S(client, "if_range", headers->if_range);
 
-  JSON_DOTSET_ELT_S(root, "client.transfer_encoding",
+  JSON_SET_ELT_S(client, "transfer_encoding",
                     headers->transfer_encoding);
-  JSON_DOTSET_ELT_S(root, "client.expect", headers->expect);
-  JSON_DOTSET_ELT_S(root, "client.upgrade", headers->upgrade);
+  JSON_SET_ELT_S(client, "expect", headers->expect);
+  JSON_SET_ELT_S(client, "upgrade", headers->upgrade);
 
 #if (NGX_HTTP_GZIP || NGX_HTTP_HEADERS)
-  JSON_DOTSET_ELT_S(root, "client.accept_encoding", headers->accept_encoding);
-  JSON_DOTSET_ELT_S(root, "client.via", headers->via);
+  JSON_SET_ELT_S(client, "accept_encoding", headers->accept_encoding);
+  JSON_SET_ELT_S(client, "via", headers->via);
 #endif
 
-  JSON_DOTSET_ELT_S(root, "client.authorization", headers->authorization);
-  JSON_DOTSET_ELT_S(root, "client.keep_alive", headers->keep_alive);
+  JSON_SET_ELT_S(client, "authorization", headers->authorization);
+  JSON_SET_ELT_S(client, "keep_alive", headers->keep_alive);
 
 #if (NGX_HTTP_X_FORWARDED_FOR)
   {
-    json_object_dotset_value(root, "client.x_forwarded_for",
+    json_object_set_value(client, "x_forwarded_for",
                              json_value_init_array());
-    JSON_Array *xff = json_object_dotget_array(root, "client.x_forwarded_for");
+    JSON_Array *xff = json_object_get_array(client, "x_forwarded_for");
 
     ngx_uint_t i;
     ngx_table_elt_t **elt = headers->x_forwarded_for.elts;
@@ -355,28 +358,28 @@ static void ngx_http_json_kss_client_headers(JSON_Object *root,
 #endif
 
 #if (NGX_HTTP_REALIP)
-  JSON_DOTSET_ELT_S(root, "client.x_real_ip", headers->x_real_ip);
+  JSON_SET_ELT_S(client, "x_real_ip", headers->x_real_ip);
 #endif
 
 #if (NGX_HTTP_HEADERS)
-  JSON_DOTSET_ELT_S(root, "client.accept", headers->accept);
-  JSON_DOTSET_ELT_S(root, "client.accept_language", headers->accept_language);
+  JSON_SET_ELT_S(client, "accept", headers->accept);
+  JSON_SET_ELT_S(client, "accept_language", headers->accept_language);
 #endif
 
 #if (NGX_HTTP_DAV)
-  JSON_DOTSET_ELT_S(root, "client.dav_depth", headers->depth);
-  JSON_DOTSET_ELT_S(root, "client.dav_destination", headers->destination);
-  JSON_DOTSET_ELT_S(root, "client.dav_overwrite", headers->overwrite);
-  JSON_DOTSET_ELT_S(root, "client.dav_date", headers->date);
+  JSON_SET_ELT_S(client, "dav_depth", headers->depth);
+  JSON_SET_ELT_S(client, "dav_destination", headers->destination);
+  JSON_SET_ELT_S(client, "dav_overwrite", headers->overwrite);
+  JSON_SET_ELT_S(client, "dav_date", headers->date);
 #endif
 
-  json_object_dotset_string(root, "client.user", PDUP(&headers->user));
-  json_object_dotset_string(root, "client.passwd", PDUP(&headers->passwd));
+  json_object_set_string(client, "user", PDUP(&headers->user));
+  json_object_set_string(client, "passwd", PDUP(&headers->passwd));
 
   // NOTE(ww): Nginx doesn't appear to split cookies into key/pair values.
   {
-    json_object_dotset_value(root, "client.cookies", json_value_init_object());
-    JSON_Object *cookies = json_object_dotget_object(root, "client.cookies");
+    json_object_set_value(client, "cookies", json_value_init_object());
+    JSON_Object *cookies = json_object_get_object(client, "cookies");
 
     ngx_uint_t i;
     ngx_table_elt_t **elt = headers->cookies.elts;
@@ -386,8 +389,8 @@ static void ngx_http_json_kss_client_headers(JSON_Object *root,
     }
   }
 
-  json_object_dotset_string(root, "client.server", PDUP(&headers->server));
-  json_object_dotset_number(root, "client.content_length_n",
+  json_object_set_string(client, "server", PDUP(&headers->server));
+  json_object_set_number(client, "content_length_n",
                             headers->content_length_n);
   // TODO(ww): keep_alive_n
 
@@ -395,22 +398,22 @@ static void ngx_http_json_kss_client_headers(JSON_Object *root,
   if (headers->connection_type == NGX_HTTP_CONNECTION_CLOSE) {
     conntype = "close";
   }
-  json_object_dotset_string(root, "client.connection_type", conntype);
-  json_object_dotset_boolean(root, "client.chunked", headers->chunked);
-  json_object_dotset_boolean(root, "client.ua.msie", headers->msie);
-  json_object_dotset_boolean(root, "client.ua.msie6", headers->msie6);
-  json_object_dotset_boolean(root, "client.ua.opera", headers->opera);
-  json_object_dotset_boolean(root, "client.ua.gecko", headers->gecko);
-  json_object_dotset_boolean(root, "client.ua.chrome", headers->chrome);
-  json_object_dotset_boolean(root, "client.ua.safari", headers->safari);
-  json_object_dotset_boolean(root, "client.ua.konqueror", headers->konqueror);
+  json_object_set_string(client, "connection_type", conntype);
+  json_object_set_boolean(client, "chunked", headers->chunked);
+  json_object_dotset_boolean(client, "ua.msie", headers->msie);
+  json_object_dotset_boolean(client, "ua.msie6", headers->msie6);
+  json_object_dotset_boolean(client, "ua.opera", headers->opera);
+  json_object_dotset_boolean(client, "ua.gecko", headers->gecko);
+  json_object_dotset_boolean(client, "ua.chrome", headers->chrome);
+  json_object_dotset_boolean(client, "ua.safari", headers->safari);
+  json_object_dotset_boolean(client, "ua.konqueror", headers->konqueror);
 }
 
-static void ngx_http_json_kss_server_headers(JSON_Object *root,
+static void ngx_http_json_kss_server_headers(JSON_Object *server,
                                              ngx_http_headers_out_t *headers) {
   {
-    json_object_dotset_value(root, "server.headers", json_value_init_object());
-    JSON_Object *hdrs = json_object_dotget_object(root, "server.headers");
+    json_object_set_value(server, "headers", json_value_init_object());
+    JSON_Object *hdrs = json_object_get_object(server, "headers");
 
     ngx_uint_t i;
     ngx_list_part_t *part = &headers->headers.part;
@@ -431,33 +434,33 @@ static void ngx_http_json_kss_server_headers(JSON_Object *root,
     }
   }
 
-  json_object_dotset_string(root, "server.status_line",
+  json_object_set_string(server, "status_line",
                             PDUP(&headers->status_line));
 
-  JSON_DOTSET_ELT_S(root, "server.server", headers->server);
-  JSON_DOTSET_ELT_S(root, "server.date", headers->date);
-  JSON_DOTSET_ELT_S(root, "server.content_length", headers->content_length);
-  JSON_DOTSET_ELT_S(root, "server.content_encoding", headers->content_encoding);
-  JSON_DOTSET_ELT_S(root, "server.location", headers->location);
-  JSON_DOTSET_ELT_S(root, "server.refresh", headers->refresh);
-  JSON_DOTSET_ELT_S(root, "server.refresh", headers->refresh);
-  JSON_DOTSET_ELT_S(root, "server.last_modified", headers->last_modified);
-  JSON_DOTSET_ELT_S(root, "server.content_range", headers->content_range);
-  JSON_DOTSET_ELT_S(root, "server.accept_ranges", headers->accept_ranges);
-  JSON_DOTSET_ELT_S(root, "server.www_authenticate", headers->www_authenticate);
-  JSON_DOTSET_ELT_S(root, "server.expires", headers->expires);
-  JSON_DOTSET_ELT_S(root, "server.etag", headers->etag);
+  JSON_SET_ELT_S(server, "server", headers->server);
+  JSON_SET_ELT_S(server, "date", headers->date);
+  JSON_SET_ELT_S(server, "content_length", headers->content_length);
+  JSON_SET_ELT_S(server, "content_encoding", headers->content_encoding);
+  JSON_SET_ELT_S(server, "location", headers->location);
+  JSON_SET_ELT_S(server, "refresh", headers->refresh);
+  JSON_SET_ELT_S(server, "refresh", headers->refresh);
+  JSON_SET_ELT_S(server, "last_modified", headers->last_modified);
+  JSON_SET_ELT_S(server, "content_range", headers->content_range);
+  JSON_SET_ELT_S(server, "accept_ranges", headers->accept_ranges);
+  JSON_SET_ELT_S(server, "www_authenticate", headers->www_authenticate);
+  JSON_SET_ELT_S(server, "expires", headers->expires);
+  JSON_SET_ELT_S(server, "etag", headers->etag);
 
-  json_object_dotset_string(root, "server.override_charset",
+  json_object_set_string(server, "override_charset",
                             PDUP(headers->override_charset));
 
-  json_object_dotset_string(root, "server.content_type",
+  json_object_set_string(server, "content_type",
                             PDUP(&headers->content_type));
-  json_object_dotset_string(root, "server.charset", PDUP(&headers->charset));
+  json_object_set_string(server, "charset", PDUP(&headers->charset));
 
-  json_object_dotset_number(root, "server.content_length_n",
+  json_object_set_number(server, "content_length_n",
                             headers->content_length_n);
-  json_object_dotset_number(root, "server.content_offset",
+  json_object_set_number(server, "content_offset",
                             headers->content_offset);
 
   // TODO(ww): cache-control, link

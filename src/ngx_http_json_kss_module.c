@@ -458,7 +458,23 @@ static void ngx_http_json_kss_server_headers(JSON_Object *server,
 
   // TODO(ww): cache-control, link
 
-  // TODO(ww): date_time, last_modified_time
+  {
+    // asctime is specified to require exactly 26 characters,
+    // with the 25th being a newline.
+    struct tm time;
+    char buf[26] = {};
+
+    // TODO(ww): Macro this and other time_t expansions.
+    gmtime_r(&headers->date_time, &time);
+    asctime_r(&time, buf);
+    buf[24] = '\0';
+    json_object_set_string(server, "date_time", buf);
+
+    gmtime_r(&headers->last_modified_time, &time);
+    asctime_r(&time, buf);
+    buf[24] = '\0';
+    json_object_set_string(server, "last_modified_time", buf);
+  }
 }
 
 static char *pstrdup0(ngx_pool_t *pool, ngx_str_t *src) {

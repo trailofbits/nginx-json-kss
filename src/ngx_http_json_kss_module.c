@@ -400,6 +400,8 @@ static void ngx_http_json_kss_client_headers(JSON_Object *client,
   }
   json_object_set_string(client, "connection_type", conntype);
   json_object_set_boolean(client, "chunked", headers->chunked);
+
+  // TODO(ww): Remove the dotsets here by creating the object explicitly.
   json_object_dotset_boolean(client, "ua.msie", headers->msie);
   json_object_dotset_boolean(client, "ua.msie6", headers->msie6);
   json_object_dotset_boolean(client, "ua.opera", headers->opera);

@@ -39,11 +39,11 @@ static ngx_pool_t *pool = NULL;
 // Given a JSON object and an ngx_table_elt_t, place the elt's value
 // in the object under the given key. If the elt is NULL,
 // place NULL in the tree instead.
-#define JSON_SET_ELT_S(json, key, ngx_elt)                                  \
-  if (ngx_elt) {                                                            \
-    json_object_set_string(json, key, PDUP_ELT(ngx_elt));                   \
-  } else {                                                                  \
-    json_object_set_null(json, key);                                        \
+#define JSON_SET_ELT_S(json, key, ngx_elt)                                     \
+  if (ngx_elt) {                                                               \
+    json_object_set_string(json, key, PDUP_ELT(ngx_elt));                      \
+  } else {                                                                     \
+    json_object_set_null(json, key);                                           \
   }
 
 static ngx_command_t ngx_http_json_kss_commands[] = {
@@ -309,10 +309,8 @@ static void ngx_http_json_kss_client_headers(JSON_Object *client,
 
   JSON_SET_ELT_S(client, "host", headers->host);
   JSON_SET_ELT_S(client, "connection", headers->connection);
-  JSON_SET_ELT_S(client, "if_modified_since",
-                    headers->if_modified_since);
-  JSON_SET_ELT_S(client, "if_unmodified_since",
-                    headers->if_unmodified_since);
+  JSON_SET_ELT_S(client, "if_modified_since", headers->if_modified_since);
+  JSON_SET_ELT_S(client, "if_unmodified_since", headers->if_unmodified_since);
   JSON_SET_ELT_S(client, "if_match", headers->if_match);
   JSON_SET_ELT_S(client, "if_none_match", headers->if_none_match);
   JSON_SET_ELT_S(client, "user_agent", headers->user_agent);
@@ -330,8 +328,7 @@ static void ngx_http_json_kss_client_headers(JSON_Object *client,
   JSON_SET_ELT_S(client, "range", headers->range);
   JSON_SET_ELT_S(client, "if_range", headers->if_range);
 
-  JSON_SET_ELT_S(client, "transfer_encoding",
-                    headers->transfer_encoding);
+  JSON_SET_ELT_S(client, "transfer_encoding", headers->transfer_encoding);
   JSON_SET_ELT_S(client, "expect", headers->expect);
   JSON_SET_ELT_S(client, "upgrade", headers->upgrade);
 
@@ -345,8 +342,7 @@ static void ngx_http_json_kss_client_headers(JSON_Object *client,
 
 #if (NGX_HTTP_X_FORWARDED_FOR)
   {
-    json_object_set_value(client, "x_forwarded_for",
-                             json_value_init_array());
+    json_object_set_value(client, "x_forwarded_for", json_value_init_array());
     JSON_Array *xff = json_object_get_array(client, "x_forwarded_for");
 
     ngx_uint_t i;
@@ -390,8 +386,7 @@ static void ngx_http_json_kss_client_headers(JSON_Object *client,
   }
 
   json_object_set_string(client, "server", PDUP(&headers->server));
-  json_object_set_number(client, "content_length_n",
-                            headers->content_length_n);
+  json_object_set_number(client, "content_length_n", headers->content_length_n);
   // TODO(ww): keep_alive_n
 
   char *conntype = "keep-alive";
@@ -436,8 +431,7 @@ static void ngx_http_json_kss_server_headers(JSON_Object *server,
     }
   }
 
-  json_object_set_string(server, "status_line",
-                            PDUP(&headers->status_line));
+  json_object_set_string(server, "status_line", PDUP(&headers->status_line));
 
   JSON_SET_ELT_S(server, "server", headers->server);
   JSON_SET_ELT_S(server, "date", headers->date);
@@ -454,16 +448,13 @@ static void ngx_http_json_kss_server_headers(JSON_Object *server,
   JSON_SET_ELT_S(server, "etag", headers->etag);
 
   json_object_set_string(server, "override_charset",
-                            PDUP(headers->override_charset));
+                         PDUP(headers->override_charset));
 
-  json_object_set_string(server, "content_type",
-                            PDUP(&headers->content_type));
+  json_object_set_string(server, "content_type", PDUP(&headers->content_type));
   json_object_set_string(server, "charset", PDUP(&headers->charset));
 
-  json_object_set_number(server, "content_length_n",
-                            headers->content_length_n);
-  json_object_set_number(server, "content_offset",
-                            headers->content_offset);
+  json_object_set_number(server, "content_length_n", headers->content_length_n);
+  json_object_set_number(server, "content_offset", headers->content_offset);
 
   // TODO(ww): cache-control, link
 

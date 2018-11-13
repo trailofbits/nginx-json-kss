@@ -29,8 +29,9 @@ static void ngx_http_json_kss_free(void *);
 
 static ngx_pool_t *pool = NULL;
 
-// Given an ngx_str_t, return a new C-string containing its data.
-#define PDUP(ngx_str) ((char *)pstrdup0(pool, &(ngx_str)))
+// Given an ngx_str_t pointer, return either a new C-string
+// containing its data or NULL if the pointer is NULL.
+#define PDUP(ngx_str) (ngx_str ? (char *)pstrdup0(pool, (ngx_str)) : NULL)
 
 // Given an ngx_table_elt_t, return a new C-string containing its value.
 #define PDUP_ELT(ngx_elt) ((char *)pstrdup0(pool, &(ngx_elt)->value))
@@ -177,6 +178,9 @@ static char *ngx_http_json_kss_merge_log_conf(ngx_conf_t *cf, void *parent,
                      " \"%s\" failed",
                      log_path0);
       // TODO(ww): Is this a sensible fallback, or should we abort?
+      // Aborting would *not* be a serious problem here, as this code
+      // runs during nginx startup and exiting on a missing file is
+      // probably a reasonable failure condition.
       fd_mapping_cache[i].fd = ngx_stderr;
     }
 
@@ -192,21 +196,29 @@ static ngx_int_t ngx_http_json_kss_log_handler(ngx_http_request_t *r) {
 
   // TODO(ww): Guard conf?
 
-  ngx_log_stderr(0, "request, log_path=%V", &conf->log_path);
-
   JSON_Value *root = json_value_init_object();
   JSON_Object *root_obj = json_value_get_object(root);
   char *json_str = NULL;
   ssize_t json_size = 0;
 
+  // TODO(ww): Instead of passing the root object here,
+  // create separate objects for the client and server explicitly
+  // and pass them in.
   ngx_http_json_kss_client_headers(root_obj, &r->headers_in);
   ngx_http_json_kss_server_headers(root_obj, &r->headers_out);
 
   json_object_dotset_number(root_obj, "connection.requests",
                             r->connection->requests);
 
-  // TODO(ww): Maybe parse http_connection as well, since it contains
-  // a flag indicating SSL state and some other interesting stuff.
+#if (NGX_HTTP_SSL || NGX_COMPAT)
+  json_object_dotset_string(root_obj, "connection.ssl_servername",
+                            PDUP(r->http_connection->ssl_servername));
+#endif
+
+  // NOTE(ww): connection and http_connection are different structures,
+  // but separating them in the JSON output would probably be confusing.
+  json_object_dotset_boolean(root_obj, "connection.ssl",
+                             r->http_connection->ssl);
 
   // TODO(ww): lingering_time, start_sec, start_msec
 
@@ -214,14 +226,14 @@ static ngx_int_t ngx_http_json_kss_log_handler(ngx_http_request_t *r) {
   json_object_set_number(root_obj, "method", r->method);
   json_object_set_number(root_obj, "http_version", r->http_version);
 
-  json_object_set_string(root_obj, "request_line", PDUP(r->request_line));
-  json_object_set_string(root_obj, "uri", PDUP(r->uri));
-  json_object_set_string(root_obj, "args", PDUP(r->args));
-  json_object_set_string(root_obj, "exten", PDUP(r->exten));
-  json_object_set_string(root_obj, "unparsed_uri", PDUP(r->unparsed_uri));
+  json_object_set_string(root_obj, "request_line", PDUP(&r->request_line));
+  json_object_set_string(root_obj, "uri", PDUP(&r->uri));
+  json_object_set_string(root_obj, "args", PDUP(&r->args));
+  json_object_set_string(root_obj, "exten", PDUP(&r->exten));
+  json_object_set_string(root_obj, "unparsed_uri", PDUP(&r->unparsed_uri));
 
-  json_object_set_string(root_obj, "method_name", PDUP(r->method_name));
-  json_object_set_string(root_obj, "http_protocol", PDUP(r->http_protocol));
+  json_object_set_string(root_obj, "method_name", PDUP(&r->method_name));
+  json_object_set_string(root_obj, "http_protocol", PDUP(&r->http_protocol));
 
   // TODO(ww): All kinds of other flags: pipelining, chunked, header_only,
   // expect_trailers, keepalive, lingering_close, etc.
@@ -288,7 +300,7 @@ static void ngx_http_json_kss_client_headers(JSON_Object *root,
         i = 0;
       }
 
-      json_object_set_string(hdrs, PDUP(elt[i].key), PDUP(elt[i].value));
+      json_object_set_string(hdrs, PDUP(&elt[i].key), PDUP(&elt[i].value));
     }
   }
 
@@ -337,7 +349,7 @@ static void ngx_http_json_kss_client_headers(JSON_Object *root,
     ngx_uint_t i;
     ngx_table_elt_t **elt = headers->x_forwarded_for.elts;
     for (i = 0; i < headers->x_forwarded_for.nelts; i++) {
-      json_array_append_string(xff, PDUP(elt[i]->value));
+      json_array_append_string(xff, PDUP(&elt[i]->value));
     }
   }
 #endif
@@ -358,8 +370,8 @@ static void ngx_http_json_kss_client_headers(JSON_Object *root,
   JSON_DOTSET_ELT_S(root, "client.dav_date", headers->date);
 #endif
 
-  json_object_dotset_string(root, "client.user", PDUP(headers->user));
-  json_object_dotset_string(root, "client.passwd", PDUP(headers->passwd));
+  json_object_dotset_string(root, "client.user", PDUP(&headers->user));
+  json_object_dotset_string(root, "client.passwd", PDUP(&headers->passwd));
 
   // NOTE(ww): Nginx doesn't appear to split cookies into key/pair values.
   {
@@ -370,11 +382,11 @@ static void ngx_http_json_kss_client_headers(JSON_Object *root,
     ngx_table_elt_t **elt = headers->cookies.elts;
 
     for (i = 0; i < headers->cookies.nelts; i++) {
-      json_object_set_string(cookies, PDUP(elt[i]->key), PDUP(elt[i]->value));
+      json_object_set_string(cookies, PDUP(&elt[i]->key), PDUP(&elt[i]->value));
     }
   }
 
-  json_object_dotset_string(root, "client.server", PDUP(headers->server));
+  json_object_dotset_string(root, "client.server", PDUP(&headers->server));
   json_object_dotset_number(root, "client.content_length_n",
                             headers->content_length_n);
   // TODO(ww): keep_alive_n
@@ -415,12 +427,12 @@ static void ngx_http_json_kss_server_headers(JSON_Object *root,
         i = 0;
       }
 
-      json_object_set_string(hdrs, PDUP(elt[i].key), PDUP(elt[i].value));
+      json_object_set_string(hdrs, PDUP(&elt[i].key), PDUP(&elt[i].value));
     }
   }
 
   json_object_dotset_string(root, "server.status_line",
-                            PDUP(headers->status_line));
+                            PDUP(&headers->status_line));
 
   JSON_DOTSET_ELT_S(root, "server.server", headers->server);
   JSON_DOTSET_ELT_S(root, "server.date", headers->date);
@@ -436,12 +448,12 @@ static void ngx_http_json_kss_server_headers(JSON_Object *root,
   JSON_DOTSET_ELT_S(root, "server.expires", headers->expires);
   JSON_DOTSET_ELT_S(root, "server.etag", headers->etag);
 
-  // json_object_dotset_string(root, "server.override_charset",
-  //                           PDUP(headers->override_charset));
+  json_object_dotset_string(root, "server.override_charset",
+                            PDUP(headers->override_charset));
 
   json_object_dotset_string(root, "server.content_type",
-                            PDUP(headers->content_type));
-  json_object_dotset_string(root, "server.charset", PDUP(headers->charset));
+                            PDUP(&headers->content_type));
+  json_object_dotset_string(root, "server.charset", PDUP(&headers->charset));
 
   json_object_dotset_number(root, "server.content_length_n",
                             headers->content_length_n);

@@ -392,7 +392,19 @@ static void ngx_http_json_kss_client_headers(JSON_Object *client,
 
   json_object_set_string(client, "server", PDUP(&headers->server));
   json_object_set_number(client, "content_length_n", headers->content_length_n);
-  // TODO(ww): keep_alive_n
+
+  {
+    // asctime is specified to require exactly 26 characters,
+    // with the 25th being a newline.
+    struct tm time;
+    char buf[26] = {};
+
+    // TODO(ww): Macro this and other time_t expansions.
+    gmtime_r(&headers->keep_alive_n, &time);
+    asctime_r(&time, buf);
+    buf[24] = '\0';
+    json_object_set_string(client, "keep_alive_n", buf);
+  }
 
   char *conntype = "keep-alive";
   if (headers->connection_type == NGX_HTTP_CONNECTION_CLOSE) {
@@ -464,12 +476,9 @@ static void ngx_http_json_kss_server_headers(JSON_Object *server,
   // TODO(ww): cache-control, link
 
   {
-    // asctime is specified to require exactly 26 characters,
-    // with the 25th being a newline.
     struct tm time;
     char buf[26] = {};
 
-    // TODO(ww): Macro this and other time_t expansions.
     gmtime_r(&headers->date_time, &time);
     asctime_r(&time, buf);
     buf[24] = '\0';

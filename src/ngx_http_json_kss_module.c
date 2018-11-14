@@ -255,8 +255,18 @@ static ngx_int_t ngx_http_json_kss_log_handler(ngx_http_request_t *r) {
   json_object_set_number(root_obj, "header_size", r->header_size);
   json_object_set_number(root_obj, "request_length", r->request_length);
 
-  // TODO(ww): All kinds of other flags: pipelining, chunked, header_only,
-  // expect_trailers, keepalive, lingering_close, etc.
+  json_object_set_boolean(root_obj, "pipeline", r->pipeline);
+  json_object_set_boolean(root_obj, "chunked", r->chunked);
+  json_object_set_boolean(root_obj, "header_only", r->header_only);
+#if defined(nginx_version) && nginx_version >= 1015006
+  json_object_set_boolean(root_obj, "expect_trailers", r->expect_trailers);
+#endif
+  json_object_set_boolean(root_obj, "keepalive", r->keepalive);
+  json_object_set_boolean(root_obj, "lingering_close", r->lingering_close);
+
+  // TODO(ww): There are a bunch of other flags available, like
+  // discard_body and reading_body, but it's unclear how internal/relevant
+  // they are.
 
   // TODO(ww): It looks like the default logger gets the timestamp
   // via ngx_timeofday(), which is really just a macro for a cached

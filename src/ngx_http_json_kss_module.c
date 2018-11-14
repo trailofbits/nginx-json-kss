@@ -252,6 +252,9 @@ static ngx_int_t ngx_http_json_kss_log_handler(ngx_http_request_t *r) {
   json_object_set_string(root_obj, "method_name", PDUP(&r->method_name));
   json_object_set_string(root_obj, "http_protocol", PDUP(&r->http_protocol));
 
+  json_object_set_number(root_obj, "header_size", r->header_size);
+  json_object_set_number(root_obj, "request_length", r->request_length);
+
   // TODO(ww): All kinds of other flags: pipelining, chunked, header_only,
   // expect_trailers, keepalive, lingering_close, etc.
 

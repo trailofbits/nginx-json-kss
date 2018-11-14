@@ -125,9 +125,6 @@ static void *ngx_http_json_kss_create_loc_conf(ngx_conf_t *cf) {
     return NGX_CONF_ERROR;
   }
 
-  // TODO(ww): Not clear if this is the right way to
-  // unset a configuration string by default --
-  // none of the NGX_CONF_UNSET_* constants work.
   conf->log_path.data = NULL;
 
   return conf;

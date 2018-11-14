@@ -46,6 +46,23 @@ static ngx_pool_t *pool = NULL;
     json_object_set_null(json, key);                                           \
   }
 
+// Given a JSON object and a pointer to a time_t, place
+// the asctime representation of that time_t under the given key.
+// If the pointer is NULL, place NULL in the tree instead.
+#define JSON_SET_TIME_S(json, key, time)                                       \
+  {                                                                            \
+    if (time) {                                                                \
+      struct tm __tm;                                                          \
+      char __buf[26] = {};                                                     \
+      gmtime_r(time, &__tm);                                                   \
+      asctime_r(&__tm, __buf);                                                 \
+      __buf[24] = '\0';                                                        \
+      json_object_set_string(json, key, __buf);                                \
+    } else {                                                                   \
+      json_object_set_null(json, key);                                         \
+    }                                                                          \
+  }
+
 static ngx_command_t ngx_http_json_kss_commands[] = {
     {
         ngx_string("json_kss"),
@@ -390,18 +407,7 @@ static void ngx_http_json_kss_client_headers(JSON_Object *client,
   json_object_set_string(client, "server", PDUP(&headers->server));
   json_object_set_number(client, "content_length_n", headers->content_length_n);
 
-  {
-    // asctime is specified to require exactly 26 characters,
-    // with the 25th being a newline.
-    struct tm time;
-    char buf[26] = {};
-
-    // TODO(ww): Macro this and other time_t expansions.
-    gmtime_r(&headers->keep_alive_n, &time);
-    asctime_r(&time, buf);
-    buf[24] = '\0';
-    json_object_set_string(client, "keep_alive_n", buf);
-  }
+  JSON_SET_TIME_S(client, "keep_alive_n", &headers->keep_alive_n);
 
   char *conntype = "keep-alive";
   if (headers->connection_type == NGX_HTTP_CONNECTION_CLOSE) {
@@ -472,20 +478,8 @@ static void ngx_http_json_kss_server_headers(JSON_Object *server,
 
   // TODO(ww): cache-control, link
 
-  {
-    struct tm time;
-    char buf[26] = {};
-
-    gmtime_r(&headers->date_time, &time);
-    asctime_r(&time, buf);
-    buf[24] = '\0';
-    json_object_set_string(server, "date_time", buf);
-
-    gmtime_r(&headers->last_modified_time, &time);
-    asctime_r(&time, buf);
-    buf[24] = '\0';
-    json_object_set_string(server, "last_modified_time", buf);
-  }
+  JSON_SET_TIME_S(server, "date_time", &headers->date_time);
+  JSON_SET_TIME_S(server, "last_modified_time", &headers->last_modified_time);
 }
 
 static char *pstrdup0(ngx_pool_t *pool, ngx_str_t *src) {
@@ -493,9 +487,7 @@ static char *pstrdup0(ngx_pool_t *pool, ngx_str_t *src) {
     ngx_log_abort(0, "memory pool is NULL?");
   }
 
-  char *dst;
-
-  dst = ngx_pnalloc(pool, src->len + 1);
+  char *dst = ngx_pnalloc(pool, src->len + 1);
 
   if (dst == NULL) {
     return NULL;
